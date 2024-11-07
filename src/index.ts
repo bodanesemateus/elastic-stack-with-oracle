@@ -1,4 +1,3 @@
-// Inicialize o agente do Elastic APM antes de qualquer outro módulo
 import apm from 'elastic-apm-node';
 
 apm.start({
