@@ -1,4 +1,4 @@
-version: '3.7'
+version: "3.7"
 services:
   oracle-db:
     image: gvenzl/oracle-xe:21-slim
@@ -83,10 +83,31 @@ services:
     image: docker.elastic.co/apm/apm-server:8.10.2
     container_name: apm-server
     volumes:
-      - ./apm-server.yaml:/usr/share/apm-server/apm-server.yml
+      - ./apm/apm-server.yaml:/usr/share/apm-server/apm-server.yml
     ports:
       - "8200:8200"
     networks:
+      - mynetwork
+
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.10.2
+    container_name: metricbeat
+    user: root
+    volumes:      
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./beats/metric/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml
+    restart: on-failure
+    networks: 
+      - mynetwork
+
+  heartbeat:
+    image: docker.elastic.co/beats/heartbeat:8.10.2
+    container_name: heartbeat
+    volumes:      
+    - ./beats/heartbeat/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml
+    environment: 
+    - setup.kibana.host=kibana:5601
+    networks: 
       - mynetwork
 
 volumes:
