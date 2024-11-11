@@ -110,6 +110,17 @@ services:
     networks: 
       - mynetwork
 
+  filebeat:
+    container_name: filebeat
+    image: docker.elastic.co/beats/filebeat:8.10.2 
+    volumes:
+      - ./beats/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /docker/proxy/log:/var/log/proxy/log
+    networks:
+      - mynetwork
+
 volumes:
   oracle-data:
   esdata:

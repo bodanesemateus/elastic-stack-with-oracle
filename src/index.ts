@@ -1,17 +1,17 @@
-import apm from 'elastic-apm-node';
+import apm from "elastic-apm-node";
 
 apm.start({
-  serviceName: process.env.ELASTIC_APM_SERVICE_NAME || 'minha-api',
-  secretToken: process.env.ELASTIC_APM_SECRET_TOKEN || '',
-  serverUrl: process.env.ELASTIC_APM_SERVER_URL || 'http://apm-server:8200',
-  environment: process.env.NODE_ENV || 'development',
-  logLevel: 'info',
+  serviceName: process.env.ELASTIC_APM_SERVICE_NAME || "minha-api",
+  secretToken: process.env.ELASTIC_APM_SECRET_TOKEN || "",
+  serverUrl: process.env.ELASTIC_APM_SERVER_URL || "http://apm-server:8200",
+  environment: process.env.NODE_ENV || "development",
+  logLevel: "info",
 });
 
 // Agora importe os outros módulos
-import { Client } from '@elastic/elasticsearch';
-import express, { Request, Response } from 'express';
-import oracledb from 'oracledb';
+import { Client } from "@elastic/elasticsearch";
+import express, { Request, Response } from "express";
+import oracledb from "oracledb";
 
 const app = express();
 app.use(express.json());
@@ -23,20 +23,20 @@ const dbConfig = {
 };
 
 const elasticClient = new Client({
-  node: process.env.ELASTICSEARCH_NODE || 'http://elasticsearch:9200',
+  node: process.env.ELASTICSEARCH_NODE || "http://elasticsearch:9200",
   auth: {
-    username: process.env.ELASTIC_USER || 'elastic',
-    password: process.env.ELASTIC_PASSWORD || 'teste123',
+    username: process.env.ELASTIC_USER || "elastic",
+    password: process.env.ELASTIC_PASSWORD || "teste123",
   },
 });
 
-app.get('/', async (req: Request, res: Response) => {
-  res.status(200).send('Healthy');
+app.get("/", async (req: Request, res: Response) => {
+  res.status(200).send("Healthy");
 });
 
-app.post('/user', async (req: Request, res: Response) => {
+app.post("/user", async (req: Request, res: Response) => {
   // Inicie uma transação APM para esta rota
-  const transaction = apm.startTransaction('POST /user', 'request');
+  const transaction = apm.startTransaction("POST /user", "request");
 
   const { nome, idade, email } = req.body;
 
@@ -44,30 +44,33 @@ app.post('/user', async (req: Request, res: Response) => {
     res
       .status(400)
       .send(
-        'Por favor, informe todos os campos necessários: nome, idade e email.'
+        "Por favor, informe todos os campos necessários: nome, idade e email."
       );
     if (transaction) {
-      transaction.result = 'failure';
+      transaction.result = "failure";
       transaction.end();
     }
     return;
-  }
+  } 
 
   let conn;
 
   try {
     // Span para a conexão e inserção no OracleDB
     const spanOracle = transaction?.startSpan(
-      'Insert no OracleDB',
-      'db',
-      'oracle',
-      'query'
+      "Insert no OracleDB",
+      "db",
+      "oracle",
+      "query"
     );
 
+    console.log("conectando no bando de dados");
     conn = await oracledb.getConnection(dbConfig);
+    console.log("conexao ok, iniciando insert de dados");
     const sql = `INSERT INTO usuarios (nome, idade, email) VALUES (:nome, :idade, :email)`;
     const binds = { nome, idade, email };
     await conn.execute(sql, binds, { autoCommit: true });
+    console.log("dados encerrados");
 
     if (spanOracle) {
       spanOracle.end();
@@ -75,14 +78,14 @@ app.post('/user', async (req: Request, res: Response) => {
 
     // Span para a indexação no Elasticsearch
     const spanElastic = transaction?.startSpan(
-      'Index no Elasticsearch',
-      'db',
-      'elasticsearch',
-      'index'
+      "Index no Elasticsearch",
+      "db",
+      "elasticsearch",
+      "index"
     );
 
     await elasticClient.index({
-      index: 'users',
+      index: "users",
       body: {
         nome,
         idade,
@@ -96,29 +99,28 @@ app.post('/user', async (req: Request, res: Response) => {
 
     res
       .status(201)
-      .send('Usuário foi inserido no OracleDB e no Elasticsearch.');
+      .send("Usuário foi inserido no OracleDB e no Elasticsearch.");
 
     if (transaction) {
-      transaction.result = 'success';
+      transaction.result = "success";
     }
   } catch (error: any) {
-    console.error('Erro ao inserir usuário:', error);
+    console.error("Erro ao inserir usuário:", error);
     apm.captureError(error);
-
-    res.status(500).send('Erro ao inserir usuário.');
+    res.status(500).send("Erro ao inserir usuário.");
 
     if (transaction) {
-      transaction.result = 'failure';
+      transaction.result = "failure";
     }
 
     // Tentativa de rollback no OracleDB se necessário
     if (conn) {
       try {
         const spanRollback = transaction?.startSpan(
-          'Rollback no OracleDB',
-          'db',
-          'oracle',
-          'rollback'
+          "Rollback no OracleDB",
+          "db",
+          "oracle",
+          "rollback"
         );
 
         await conn.execute(
@@ -131,7 +133,7 @@ app.post('/user', async (req: Request, res: Response) => {
           spanRollback.end();
         }
       } catch (rollbackError: any) {
-        console.error('Erro ao fazer rollback no OracleDB:', rollbackError);
+        console.error("Erro ao fazer rollback no OracleDB:", rollbackError);
         apm.captureError(rollbackError);
       }
     }
@@ -141,7 +143,7 @@ app.post('/user', async (req: Request, res: Response) => {
       try {
         await conn.close();
       } catch (closeError: any) {
-        console.error('Erro ao fechar a conexão com o OracleDB:', closeError);
+        console.error("Erro ao fechar a conexão com o OracleDB:", closeError);
         apm.captureError(closeError);
       }
     }
